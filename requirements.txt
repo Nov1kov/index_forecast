@@ -1,0 +1,9 @@
+pandas-datareader
+yfinance
+numpy
+pandas
+tensorflow
+keras
+ipython
+matplotlib
+ipykernel
