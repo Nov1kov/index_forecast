@@ -52,3 +52,12 @@ def calculate():
         max_tries=500,
         random_state=0,
         return_heatmap=True)
+
+
+if __name__ == '__main__':
+    df = _read_file('stock_market_data/sp500/csv/AAPL.csv')
+    df = df['2000-01-01':'2016-01-01']
+    bt = Backtest(df, SafeStrategy, commission=.005)
+    stats = bt.run()
+    bt.plot()
+    print(stats)
