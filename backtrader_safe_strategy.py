@@ -96,9 +96,9 @@ def get_data(ticker):
         openinterest=-1,
         dataname=datapath,
         # Do not pass values before this date
-        fromdate=datetime.datetime(2006, 1, 1),
+        fromdate=datetime.datetime(2010, 1, 1),
         # Do not pass values before this date
-        todate=datetime.datetime(2016, 1, 1),
+        todate=datetime.datetime(2018, 1, 1),
         # Do not pass values after this date
         reverse=False)
 
@@ -163,3 +163,7 @@ def run(optimize: bool, **kwargs):
 
 if __name__ == '__main__':
     run(True)
+
+#  AAPL, ADBE, ATVI, AMZN, AXP, ALK, EQIX, COP, MRO, COF, NEM
+# 2006 - 2010 years: buy_after_decrease_percents': 70, 'sell_after_profit_percents': 10, 're_buy_percents': 5
+# 2010 - 2018 years: buy_after_decrease_percents': 10, 'sell_after_profit_percents': 190, 're_buy_percents': 5
