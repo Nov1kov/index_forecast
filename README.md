@@ -1,4 +1,4 @@
-# Try predict finance chart by neural network
+# Try predict finance chart or find profitest strategy
 
 ## Index
 - example.ipynb - copy example about predict temperature
@@ -17,3 +17,6 @@ pip install -r requirements.txt
 python -m ipykernel install --user --name=myenv
 ```
 
+## data sets
+
+- 9.36 GB - [(for all NASDAQ, S&P500, and NYSE listed companies](https://www.kaggle.com/paultimothymooney/stock-market-data)
