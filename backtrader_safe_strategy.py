@@ -62,7 +62,8 @@ class SafeStrategy(bt.Strategy):
             last_maximum = self.last_maximum[ticker]
             position = self.getposition(d)
             pl_pct = self.__get_pl_pct(position)
-            if (last_maximum - price) / price * 100 > self.p.buy_after_decrease_percents and not position:
+            down_from_max_pct = (last_maximum - price) / price * 100
+            if down_from_max_pct > self.p.buy_after_decrease_percents and not position:
                 self.buy(data=d, size=self.__get_size(price))
                 if 'AAL' == ticker:
                     print(f'buy: {position.size=}\t{price=}\t{position.price=}\t{pl_pct=}\t{self.last_maximum=}')
@@ -71,7 +72,7 @@ class SafeStrategy(bt.Strategy):
                 self.buy(data=d, size=size)
                 if 'AAL' in ticker:
                     print(f'buy: {position.size=}\t{price=}\t{position.price=}\t{pl_pct=}\t{self.last_maximum=}')
-            elif position and pl_pct > self.p.sell_after_profit_percents / 100.0:
+            elif position and pl_pct > self.p.sell_after_profit_percents / 100.0 and down_from_max_pct < self.p.buy_after_decrease_percents:
                 self.sell(data=d, size=position.size)
                 if 'AAL' == ticker:
                     print(f'buy: {position.size=}\t{price=}\t{position.price=}\t{pl_pct=}\t{self.last_maximum=}')
@@ -95,25 +96,29 @@ def get_data(ticker):
         openinterest=-1,
         dataname=datapath,
         # Do not pass values before this date
-        fromdate=datetime.datetime(2000, 1, 1),
+        fromdate=datetime.datetime(2006, 1, 1),
         # Do not pass values before this date
         todate=datetime.datetime(2016, 1, 1),
         # Do not pass values after this date
         reverse=False)
 
 
-def run_once():
+def run(optimize: bool, **kwargs):
     # Create a cerebro entity
     cerebro = bt.Cerebro()
 
-    # Add a strategy
-    #cerebro.addstrategy(SafeStrategy) # best {'buy_after_decrease_percents': 10, 'sell_after_profit_percents': 90, 're_buy_percents': 5, 'buy_size': 0.02}
-    cerebro.optstrategy(SafeStrategy,
-                                 buy_after_decrease_percents=range(10, 100, 10),
-                                 sell_after_profit_percents=range(10, 100, 10),
-                                 re_buy_percents=range(5, 40, 5),
-                                 buy_size=tuple(np.linspace(0.1, 1, 10)),
-                                 )
+    # best {'buy_after_decrease_percents': 10, 'sell_after_profit_percents': 90, 're_buy_percents': 5, 'buy_size': 0.02}
+    # best {'buy_after_decrease_percents': 90, 'sell_after_profit_percents': 80, 're_buy_percents': 35, 'buy_size': 0.8}
+    if optimize:
+        cerebro.optstrategy(SafeStrategy,
+                            buy_after_decrease_percents=range(10, 200, 20),
+                            sell_after_profit_percents=range(10, 200, 20),
+                            re_buy_percents=range(5, 100, 10),
+                            # buy_size=tuple(np.linspace(0.1, 1, 10)),
+                            )
+    else:
+        cerebro.addstrategy(SafeStrategy, **kwargs)
+    print(f"Count of strats: {len(cerebro.strats)}")
     # Add the Data Feed to Cerebro
     cerebro.adddata(get_data('AAPL'))
     cerebro.adddata(get_data('ADBE'))
@@ -121,9 +126,11 @@ def run_once():
     cerebro.adddata(get_data('AMZN'))
     cerebro.adddata(get_data('AXP'))
     cerebro.adddata(get_data('ALK'))
-    cerebro.adddata(get_data('ATO'))
+    cerebro.adddata(get_data('EQIX'))
     cerebro.adddata(get_data('COP'))
     cerebro.adddata(get_data('MRO'))
+    cerebro.adddata(get_data('COF'))
+    cerebro.adddata(get_data('NEM'))
 
     cerebro.addanalyzer(bt.analyzers.Returns)
 
@@ -139,18 +146,20 @@ def run_once():
     # Print out the final result
     print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
 
-    strats = [x[0] for x in results]  # flatten the result
-    strats.sort(key=lambda x: x.analyzers.returns._value_end)
-    profitest = strats[-10:]
-    for strat in profitest:
-        ret = strat.analyzers.returns
-        rets = ret.get_analysis()
-        final_cash = ret._value_end
-        print(f'{final_cash=}\trtot: {rets["rtot"]=}\travg:{rets["ravg"]}\trnorm100: {rets["rnorm100"]}\t{strat.p.__dict__}')
-
-    return cerebro
+    if optimize:
+        strats = [x[0] for x in results]  # flatten the result
+        strats.sort(key=lambda x: x.analyzers.returns._value_end)
+        profitest = strats[-10:]
+        for strat in profitest:
+            ret = strat.analyzers.returns
+            rets = ret.get_analysis()
+            final_cash = ret._value_end
+            print(f'{final_cash=}\trtot: {rets["rtot"]=}\travg:{rets["ravg"]}\trnorm100: {rets["rnorm100"]}\t{strat.p.__dict__}')
+        strat = profitest[-1]
+        run(False, **strat.p.__dict__)
+    else:
+        cerebro.plot()
 
 
 if __name__ == '__main__':
-    cerebro = run_once()
-    # cerebro.plot()
+    run(True)
