@@ -34,5 +34,8 @@ Reinforcement learning is the training of machine learning models to make a sequ
 - [some example](https://github.com/AI4Finance-LLC/Deep-Reinforcement-Learning-for-Automated-Stock-Trading-Ensemble-Strategy-ICAIF-2020)
 
 ## ROADMAP reading
+- https://www.youtube.com/watch?v=D9sU1hLT0QY
 - [ML with backtesting](https://medium.com/analytics-vidhya/ml-classification-algorithms-to-predict-market-movements-and-backtesting-2382fdaf7a32)
-- 
+- [A curated list of awesome machine learning strategies & tools in financial market.](https://www.analyticsvidhya.com/blog/2021/01/bear-run-or-bull-run-can-reinforcement-learning-help-in-automated-trading/)
+- [Bear run or bull run](https://pythonrepo.com/repo/georgezouq-awesome-ai-in-finance-python-machine-learning)
+- [kaggle](https://www.kaggle.com/itoeiji/deep-reinforcement-learning-on-stock-data)
