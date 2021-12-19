@@ -2,26 +2,30 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import datetime  # For datetime objects
-import os.path  # To manage paths
+import itertools
+import random
 import re
-
 from pathlib import Path
 
 import backtrader as bt
-
-
 # Create a Stratey
 import numpy as np
 from backtrader.feeds import GenericCSVData
 
+DATASET_PATH = 'stock_market_data'
+FROM_DATE = datetime.datetime(2010, 1, 1)
+TO_DATE = datetime.datetime(2021, 12, 1)
+COUNT_OF_STOCKS = 8
+TRADE_INTERVAL = datetime.timedelta(days=365 * 3)
+
 
 class SafeStrategy(bt.Strategy):
-
     params = (
         ('buy_after_decrease_percents', 30.0),
         ('sell_after_profit_percents', 40.0),
         ('re_buy_percents', 20.0),
         ('buy_size', 0.02),
+        ('re_buy_size', 1.0),
     )
 
     def log(self, txt, dt=None):
@@ -34,7 +38,7 @@ class SafeStrategy(bt.Strategy):
         self.last_maximum = {}
         self.re_ticker = re.compile(r"/([A-Z]+)\.csv")
         for d in self.datas:
-            ticker = self.re_ticker.findall(d.params.dataname)[0]
+            ticker = d.params.dataname.name.replace('.csv', '')
             self.last_maximum[ticker] = 0.0
 
     def __get_pl_pct(self, position):
@@ -49,15 +53,13 @@ class SafeStrategy(bt.Strategy):
         return round(part_of_cash / price)
 
     def stop(self):
-        self.log('buy_after_decrease_percents %2d\tEnding Value %.2f' %
-                 (self.p.sell_after_profit_percents, self.broker.getvalue()))
+        self.log('params %s\nPortfolio Value %.2f\tCash: %.2f' % (self.p.__dict__, self.broker.getvalue(), self.broker.cash))
 
     def next(self):
         for d in self.datas:
             price = d.close[0]
-            datetime = d.datetime.datetime()
-            ticker = self.re_ticker.findall(d.params.dataname)[0]
-            # print(f"{ticker} - {datetime}")
+            ticker = d.params.dataname.name.replace('.csv', '')
+            # print(f"{ticker} - {d.datetime.datetime()}")
             self.last_maximum[ticker] = price if price > self.last_maximum[ticker] else self.last_maximum[ticker]
             last_maximum = self.last_maximum[ticker]
             position = self.getposition(d)
@@ -68,7 +70,7 @@ class SafeStrategy(bt.Strategy):
                 if 'AAL' == ticker:
                     print(f'buy: {position.size=}\t{price=}\t{position.price=}\t{pl_pct=}\t{self.last_maximum=}')
             elif position and pl_pct < -self.p.re_buy_percents / 100.0:
-                size = self.__get_size(price)
+                size = round(position.size * self.p.re_buy_size)
                 self.buy(data=d, size=size)
                 if 'AAL' in ticker:
                     print(f'buy: {position.size=}\t{price=}\t{position.price=}\t{pl_pct=}\t{self.last_maximum=}')
@@ -78,12 +80,7 @@ class SafeStrategy(bt.Strategy):
                     print(f'buy: {position.size=}\t{price=}\t{position.price=}\t{pl_pct=}\t{self.last_maximum=}')
 
 
-def get_data(ticker):
-    datapath = os.path.join(f'stock_market_data/sp500/csv/{ticker}.csv', )
-    if not Path(datapath).exists():
-        datapath = os.path.join(f'stock_market_data/nasdaq/csv/{ticker}.csv', )
-        if not Path(datapath).exists():
-            datapath = os.path.join(f'stock_market_data/nyse/csv/{ticker}.csv', )
+def get_data(ticker_path, from_date: datetime, to_date: datetime):
     # Create a Data Feed
     # Date,Low,Open,Volume,High,Close,Adjusted Close
     return GenericCSVData(
@@ -94,43 +91,50 @@ def get_data(ticker):
         high=4,
         close=5,
         openinterest=-1,
-        dataname=datapath,
+        dataname=ticker_path,
         # Do not pass values before this date
-        fromdate=datetime.datetime(2010, 1, 1),
+        fromdate=from_date,
         # Do not pass values before this date
-        todate=datetime.datetime(2018, 1, 1),
+        todate=to_date,
         # Do not pass values after this date
         reverse=False)
 
 
-def run(optimize: bool, **kwargs):
+def run(optimize: bool, data_sets: list = None, **kwargs):
     # Create a cerebro entity
     cerebro = bt.Cerebro()
 
-    # best {'buy_after_decrease_percents': 10, 'sell_after_profit_percents': 90, 're_buy_percents': 5, 'buy_size': 0.02}
-    # best {'buy_after_decrease_percents': 90, 'sell_after_profit_percents': 80, 're_buy_percents': 35, 'buy_size': 0.8}
+    start_time = datetime.datetime.now()
     if optimize:
-        cerebro.optstrategy(SafeStrategy,
-                            buy_after_decrease_percents=range(10, 200, 20),
-                            sell_after_profit_percents=range(10, 200, 20),
-                            re_buy_percents=range(5, 100, 10),
-                            # buy_size=tuple(np.linspace(0.1, 1, 10)),
-                            )
+        params = {'buy_after_decrease_percents': range(10, 100, 20),
+                  'sell_after_profit_percents': range(10, 200, 20),
+                  're_buy_percents': range(5, 100, 15),
+                  'buy_size': tuple(np.linspace(0.01, 0.5, 10)),
+                  're_buy_size': tuple(np.linspace(0.5, 3, 5)),
+                  }
+        cerebro.optstrategy(SafeStrategy, **params)
+        vals = cerebro.iterize(params.values())
+        optvals = itertools.product(*vals)
+        count_of_iters = len(list(optvals))
+        print('Count of iterations:' + str(count_of_iters))
     else:
         cerebro.addstrategy(SafeStrategy, **kwargs)
-    print(f"Count of strats: {len(cerebro.strats)}")
-    # Add the Data Feed to Cerebro
-    cerebro.adddata(get_data('AAPL'))
-    cerebro.adddata(get_data('ADBE'))
-    cerebro.adddata(get_data('ATVI'))
-    cerebro.adddata(get_data('AMZN'))
-    cerebro.adddata(get_data('AXP'))
-    cerebro.adddata(get_data('ALK'))
-    cerebro.adddata(get_data('EQIX'))
-    cerebro.adddata(get_data('COP'))
-    cerebro.adddata(get_data('MRO'))
-    cerebro.adddata(get_data('COF'))
-    cerebro.adddata(get_data('NEM'))
+
+    # get random trade interval
+    if data_sets is None:
+        data_sets = []
+        total_days_of_dataset = TO_DATE - FROM_DATE - TRADE_INTERVAL
+        random_day = random.randint(0, total_days_of_dataset.days)
+        start_date = FROM_DATE + datetime.timedelta(days=random_day)
+        to_date = start_date + TRADE_INTERVAL
+        print(f"trade from {start_date} to {to_date}")
+        all_tickers = [(p.name.replace('.csv', ''), p) for p in Path(DATASET_PATH).rglob("**/*.csv")]
+        for i in range(COUNT_OF_STOCKS):
+            ticker_index = random.randint(0, len(all_tickers))
+            ticker, ticker_path = all_tickers[ticker_index]
+            data_sets.append((get_data(ticker_path, start_date, to_date), ticker))
+            print('add data set of ' + ticker)
+    list(map(lambda d: cerebro.adddata(d[0], d[1]), data_sets))
 
     cerebro.addanalyzer(bt.analyzers.Returns)
 
@@ -143,21 +147,25 @@ def run(optimize: bool, **kwargs):
     # Run over everything
     results = cerebro.run()
 
-    # Print out the final result
-    print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
-
     if optimize:
         strats = [x[0] for x in results]  # flatten the result
         strats.sort(key=lambda x: x.analyzers.returns._value_end)
-        profitest = strats[-10:]
+        profitest = strats[-20:]
         for strat in profitest:
             ret = strat.analyzers.returns
             rets = ret.get_analysis()
             final_cash = ret._value_end
-            print(f'{final_cash=}\trtot: {rets["rtot"]=}\travg:{rets["ravg"]}\trnorm100: {rets["rnorm100"]}\t{strat.p.__dict__}')
+            print(
+                f'{final_cash=}\trtot: {rets["rtot"]=}\travg:{rets["ravg"]}\trnorm100: {rets["rnorm100"]}\t{strat.p.__dict__}')
         strat = profitest[-1]
-        run(False, **strat.p.__dict__)
+        with open('result.txt', 'w+') as f:
+            report = ','.join([d[1] for d in data_sets]) + '\t'
+            report += '\t'.join([str(v) for v in strat.p.__dict__.values()])
+            f.write(report + '\n')
+        print(f'Analyze duration: {datetime.datetime.now() - start_time}')
+        run(False, data_sets=data_sets, **strat.p.__dict__)
     else:
+        print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
         cerebro.plot()
 
 

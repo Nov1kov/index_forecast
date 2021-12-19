@@ -1,8 +1,5 @@
-import numpy as np
 import pandas as pd
-import backtesting
 from backtesting import Backtest, Strategy
-from backtesting.lib import plot_heatmaps
 
 
 class SafeStrategy(Strategy):
